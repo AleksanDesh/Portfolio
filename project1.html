@@ -6,133 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Project 1</title>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-
-    .hover-zone {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 50px;
-      height: 50px;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    .go-back-button {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background-color: #333;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      cursor: pointer;
-      font-size: 14px;
-      text-align: center;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2;
-      transform: scale(1);
-      transition: transform 0.2s ease;
-    }
-
-    .hover-zone:hover ~ .go-back-button,
-    .go-back-button:hover {
-      transform: scale(1.1);
-    }
-
-    body {
-      font-family: 'Roboto', sans-serif;
-      line-height: 1.6;
-      color: #333;
-      background: #f9f9f9;
-      padding: 0 20px;
-      width: 85%;
-      margin: 20px auto;
-      box-sizing: border-box;
-    }
-
-    header {
-      background: #333;
-      color: #fff;
-      padding: 20px 0;
-      text-align: center;
-      border-radius: 5px;
-    }
-
-    header h1 {
-      font-size: 2.5rem;
-    }
-
-    nav {
-      margin-top: 10px;
-    }
-
-    nav a {
-      color: #fff;
-      text-decoration: none;
-      margin: 0 10px;
-      font-weight: bold;
-    }
-
-    nav a:hover {
-      text-decoration: underline;
-    }
-
-    section {
-      margin: 40px 0;
-      padding: 20px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      width: 95%;
-      margin: 20px auto;
-      box-sizing: border-box; 
-    }
-
-    h2 {
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 40px;
-      padding: 10px 0;
-      background: #333;
-      color: #fff;
-      border-radius: 10px;
-    }
-
-    iframe {
-      display: block;
-      width: 77.7%;
-      height: 640px;
-      margin: 20px auto;
-      border: 2px solid black;
-      border-radius: 10px;
-    }
-  </style>
+  <link rel="stylesheet" href="Style.css">
 </head>
 
 <body>
   <header>
     <h1>Project 1: Top-down shooter</h1>
     <nav>
+      <a href="#Demo">Demo</a>
         <a href="#Description">Description</a>
         <a href="#Code Example 1">Code Example 1</a>
         <a href="#Code Example 2">Code Example 2</a>
-        <a href="#Demo">Demo</a>
       </nav>
   </header>
   
@@ -140,241 +24,262 @@
 
   <a href="index.html" class="go-back-button">Back to Portfolio</a>
 
+  <section id="Demo">
+    <h2>Demo</h2>
+    <div class="video-container">
+      <iframe 
+        src="https://www.youtube.com/embed/Oex1u6bKnjA" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+      </iframe>
+    </div>
+  </section>
+
+
   <section id="Description">
     <h2>Description:</h2>
-    <p>This is my shooter project. While it may not feature complex mechanics at the moment, it represents a code-focused endeavor. Currently, I have developed an effective spawning script and a functional behavior script, which serve as the foundation for further development.</p>
+    <p>This is my shooter project. While it may not feature complex mechanics at the moment, 
+        it represents a code-focused endeavor. Currently, I have developed an effective spawning 
+        script and a functional behavior script, which serve as the foundation for further development.</p>
   </section>
 
   <section id="Code Example 1">
-    <h2>Code Example 1</h2>
-    <pre><code>
-        using System.Collections;
-        using UnityEngine;
-        using UnityEngine.AI;
-
-        /// summary
-        /// Ai Navmesh for the ranged enemies. Has FOV, also detects player if he is too close.
-        /// When the player is detected, heads to his position while keeping certain distance.
-        /// When no player is detected, starts wandering around.
-        /// summary
-        
-        [RequireComponent(typeof(NavMeshAgent))]
-        public class AIRanged : GenericEnemy
+    <div class="code-container">
+      <h2>C# Code Example 1</h2>
+      <div class="code-frame">
+        <pre>
+  <code>
+    using System.Collections;
+    using UnityEngine;
+    using UnityEngine.AI;
+    /// &lt;summary&gt;
+    /// AI Navmesh for the ranged enemies. Has FOV, also detects player if he is too close.
+    /// When the player is detected, heads to his position while keeping a certain distance.
+    /// When no player is detected, starts wandering around.
+    /// &lt;/summary&gt;
+    
+    [RequireComponent(typeof(NavMeshAgent))]
+    public class AIRanged : GenericEnemy
+    {
+        protected bool canSee;
+        private NavMeshAgent agent;
+        int fieldOfViewRange = 100; // in degrees * 2
+        int minPlayerDetectDistance = 8; // the distance the player can come behind the enemy 
+        int rayRange = 18; // distance the enemy can "see" in front of him
+        private Vector3 rayDirection = Vector3.zero;
+        private bool wandering;
+        private Vector3 randomPosition;
+        private float timer;
+        // Start is called before the first frame update
+        public virtual void Start()
         {
-            protected bool canSee;
-            private NavMeshAgent agent;
-            int fieldOfViewRange = 100; // in degrees * 2
-            int minPlayerDetectDistance = 8; // the distance the player can come behind the enemy 
-            int rayRange = 18; // distance the enemy can "see" in front of him
-            private Vector3 rayDirection = Vector3.zero;
-            private bool wandering;
-            private Vector3 randomPosition;
-            private float timer;
-            // Start is called before the first frame update
-            public virtual void Start()
+            randomPosition = transform.position;
+            agent = GetComponent&lt;NavMeshAgent&gt;();
+            agent.stoppingDistance = 0;
+            StartCoroutine(Navigate());
+        }
+    
+    
+        IEnumerator Navigate()
+        {
+            while (true)
             {
-                randomPosition = transform.position;
-                agent = GetComponent<NavMeshAgent>();
-                agent.stoppingDistance = 0;
-                StartCoroutine(Navigate());
-            }
-        
-        
-            IEnumerator Navigate()
-            {
-                while (true)
-                {
-                    RaycastHit hit;
-                    rayDirection = GameManager.instance.playerPosition - transform.position;
-                    var distanceToPlayer = Vector3.Distance(transform.position, GameManager.instance.playerPosition);
-        
-                    if (Physics.Raycast(transform.position, rayDirection, out hit))
-                    { // If the player is very close behind the enemy and not in view the enemy will detect the player
-                        if ((hit.transform.tag == "Player") && (distanceToPlayer <= minPlayerDetectDistance))
+                RaycastHit hit;
+                rayDirection = GameManager.instance.playerPosition - transform.position;
+                var distanceToPlayer = Vector3.Distance(transform.position, GameManager.instance.playerPosition);
+    
+                if (Physics.Raycast(transform.position, rayDirection, out hit))
+                { // If the player is very close behind the enemy and not in view the enemy will detect the player
+                    if ((hit.transform.tag == "Player") && (distanceToPlayer &lt;= minPlayerDetectDistance))
+                    {
+                        //Debug.Log("Popavsya");
+                        canSee = true;
+                        wandering = false;
+                    }
+                }
+    
+                if ((Vector3.Angle(rayDirection, transform.forward)) &lt; fieldOfViewRange)
+                { // Detect if player is within the field of view
+                    if (Physics.Raycast(transform.position, rayDirection, out hit, rayRange))
+                    {
+                        if (hit.transform.tag == "Player")
                         {
-                            //Debug.Log("Popavsya");
+                            //Debug.Log("Can see the player");
                             canSee = true;
                             wandering = false;
+                            agent.stoppingDistance = 10;
                         }
-                    }
-        
-                    if ((Vector3.Angle(rayDirection, transform.forward)) < fieldOfViewRange)
-                    { // Detect if player is within the field of view
-                        if (Physics.Raycast(transform.position, rayDirection, out hit, rayRange))
+                        else
                         {
-                            if (hit.transform.tag == "Player")
-                            {
-                                //Debug.Log("Can see the player");
-                                canSee = true;
-                                wandering = false;
-                                agent.stoppingDistance = 10;
-                            }
-                            else
-                            {
-                                //Debug.Log("Can not see the player");
-                                canSee = false;
-                                agent.stoppingDistance = 0;
-                            }
+                            //Debug.Log("Can not see the player");
+                            canSee = false;
+                            agent.stoppingDistance = 0;
                         }
                     }
-        
-                    if (canSee)
+                }
+    
+                if (canSee)
+                {
+                    agent.SetDestination(GameManager.instance.playerPosition);
+                }
+                else
+                { // If we don't see the player, start wandering
+                    if (Vector3.Distance(transform.position, randomPosition) &lt;= 4) // If we already reached our random target position, generate a new one
                     {
-                        agent.SetDestination(GameManager.instance.playerPosition);
+                        wandering = false;
+                        timer = 0;
                     }
-                    else
-                    { // If we don't see the player, start wandering
-                        if (Vector3.Distance(transform.position, randomPosition) <= 4) // If we already reached our random target position, generate a new one
-                        {
-                            wandering = false;
-                            timer = 0;
-                        }
-                        else if (timer > 5f)
-                            wandering = false;
-        
-                        if (!wandering)
-                        {// TODO: make it raycast in a circle, find the nearest Map tag and go there IF the enemy is outside the map (FOR DESIGN)
-                            if (transform.position.x > 50 || transform.position.x < -50 || transform.position.y > 50 || transform.position.y < -50)
-                            { // If we are outside the player map, raycast to the center and find the nearest point where the player map ends
-                                int layerMask = LayerMask.GetMask("Map");
-                                RaycastHit position;
-                                if (Physics.Raycast(transform.position, -transform.position, out position, Mathf.Infinity, layerMask))
-                                {
-                                    if (position.transform.CompareTag("Map"))
-                                    { // Set our targetPos to the point where we collided with the map boarder
-                                        randomPosition.x = position.point.x;
-                                        randomPosition.z = position.point.z;
-                                    }
+                    else if (timer > 5f)
+                        wandering = false;
+    
+                    if (!wandering)
+                    {// TODO: make it raycast in a circle, find the nearest Map tag and go there IF the enemy is outside the map (FOR DESIGN)
+                        if (transform.position.x > 50 || transform.position.x &lt; -50 || transform.position.y > 50 || transform.position.y < -50)
+                        { // If we are outside the player map, raycast to the center and find the nearest point where the player map ends
+                            int layerMask = LayerMask.GetMask("Map");
+                            RaycastHit position;
+                            if (Physics.Raycast(transform.position, -transform.position, out position, Mathf.Infinity, layerMask))
+                            {
+                                if (position.transform.CompareTag("Map"))
+                                { // Set our targetPos to the point where we collided with the map boarder
+                                    randomPosition.x = position.point.x;
+                                    randomPosition.z = position.point.z;
                                 }
                             }
-                            else
-                            { // If we are inside the player's map, generate a random targetPos
-                                var unit = Random.insideUnitCircle * 20;
-                                randomPosition = transform.position + new Vector3(unit.x, 0.0f, unit.y);
-                            }
-        
-                            agent.SetDestination(randomPosition);
-                            timer = Time.deltaTime;
-                            wandering = true;
-                            //Debug.Log("Moving to " + randomPosition);
                         }
+                        else
+                        { // If we are inside the player's map, generate a random targetPos
+                            var unit = Random.insideUnitCircle * 20;
+                            randomPosition = transform.position + new Vector3(unit.x, 0.0f, unit.y);
+                        }
+    
+                        agent.SetDestination(randomPosition);
+                        timer = Time.deltaTime;
+                        wandering = true;
+                        //Debug.Log("Moving to " + randomPosition);
                     }
-                    yield return new WaitForSeconds(.3f);
                 }
+                yield return new WaitForSeconds(.3f);
             }
         }
-    </code></pre>
+    }
+    
+  </code>
+        </pre>
+      </div>
+    </div>
   </section>
+  
 
   <section id="Code Example 2">
-    <h2>Code Example 2</h2>
-    <pre><code>
-        using System.Collections.Generic;
-        using UnityEngine;
-
-        /// summary
-        /// Here we spawn enemies around the player and we calculate when the level difficulty is increased and set the new values for the GameManager
-        /// summary
-
-        public class EnemySpawn : MonoBehaviour
+    <div class="code-container">
+      <h2>C# Code Example 2</h2>
+      <div class="code-frame">
+        <pre>
+  <code>
+    using System.Collections.Generic;
+    using UnityEngine;
+    /// &lt;summary&gt;
+    /// Here we spawn enemies around the player and we calculate when the level difficulty is increased and set the new values for the GameManager
+    /// &lt;/summary&gt;
+    public class EnemySpawn : MonoBehaviour
+    {
+        private int time = 10;
+        [SerializeField, Tooltip(&quot;the higher the value, the faster the enemies will spawn&quot;)]
+        private float spawnRate = 1; // The higher the value, the faster the enemies will spawn
+        private float spawnTimer; // Used do calculate how much time has passed
+        [SerializeField]
+        private GenericEnemy[] enemyPrefabs;
+        [SerializeField]
+        private List&lt;GenericEnemy&gt; enemies = new List&lt;GenericEnemy&gt;();
+        private float levelTimer;
+    
+        void Start()
         {
-            private int time = 10;
-            [SerializeField, Tooltip("the higher the value, the faster the enemies will spawn")]
-            private float spawnRate = 1; // The higher the value, the faster the enemies will spawn
-            private float spawnTimer; // Used do calculate how much time has passed
-            [SerializeField]
-            private GenericEnemy[] enemyPrefabs;
-            [SerializeField]
-            private List<GenericEnemy> enemies = new List<GenericEnemy>();
-            private float levelTimer;
-        
-            void Start()
+            levelTimer = 5;
+            spawnTimer = 0;
+        }
+    
+        void Update()
+        {
+            if (!GameManager.instance.IsPaused())
             {
-                levelTimer = 5;
-                spawnTimer = 0;
-            }
-        
-            void Update()
-            {
-                if (!GameManager.instance.IsPaused())
-                {
-        
-                    spawnTimer += Time.deltaTime;
-                    if (spawnTimer * spawnRate >= time)
-                    {// Generate random position in circle radius
-        
-                        float distance = 0;
-                        var randomPosition = Vector3.zero;
-                        int stackProtector = 20;
-                        bool freeZone = false;
-        
-                        do
-                        {
-                            freeZone = false;
-                            var unit = Random.insideUnitCircle * 20;
-                            randomPosition = GameManager.instance.playerPosition + new Vector3(unit.x, 0.0f, unit.y);
-        
-                            distance = Vector3.Distance(GameManager.instance.playerPosition,randomPosition);
-        
-                            int layerMask = LayerMask.GetMask("Walls");
-                            RaycastHit check;
-                            if (!Physics.SphereCast(new Vector3(randomPosition.x, 10, randomPosition.z), 2, -transform.up, out check, 15, layerMask))
-                            {// Raycasting from the top of desired spawn location to check if there is enough space for the enemy
-                                freeZone = true;
-                            }
-        
-                        } while (--stackProtector > 0 && (!freeZone || distance < 7.0f));
-        
-                        if (stackProtector > 0)
-                        {//spawns the enemy
-                            spawnTimer = 0.0f;
-                            int randomIndex = Random.Range(0, enemyPrefabs.Length); //randomly choses an enemy to spawn (can be added more enemies)
-                            GenericEnemy newEnemy = Instantiate(enemyPrefabs[randomIndex], randomPosition, Quaternion.LookRotation(GameManager.instance.playerPosition));
-                            newEnemy.enemyList = enemies;
-                            enemies.Add(newEnemy); // Adds the enemy to the array
-                        }
-                    }
-        
-                    levelTimer -= Time.deltaTime;
-                    if (levelTimer <= 0)// Increases the level difficulty
+    
+                spawnTimer += Time.deltaTime;
+                if (spawnTimer * spawnRate &gt;= time)
+                {// Generate random position in circle radius
+    
+                    float distance = 0;
+                    var randomPosition = Vector3.zero;
+                    int stackProtector = 20;
+                    bool freeZone = false;
+    
+                    do
                     {
-                        IncreaseDifficulty();
-                        levelTimer = 10f;
-                        GameManager.instance.exp++; // Gives 1 exp to the player
-                        GameManager.instance.itemSpawn = true; // Gives info to the item spawn to spawn //!CHANGE TO BOOL!
-                        spawnRate += 1; // Increase the spawn rate
-                        GameManager.instance.levelDifficulty += 1;
-        
-                        // Makes the upcoming enemies harder (from here)
-                        GameManager.instance.meleeDamageEnemyHp += 3; 
-                        GameManager.instance.meleeDamageEnemySpeed += 0.1f;
-                        GameManager.instance.rangedEnemyBulletSpeed += .1f;
-                        GameManager.instance.rangedEnemySpeed += .1f;
-                        // (to here)
+                        freeZone = false;
+                        var unit = Random.insideUnitCircle * 20;
+                        randomPosition = GameManager.instance.playerPosition + new Vector3(unit.x, 0.0f, unit.y);
+    
+                        distance = Vector3.Distance(GameManager.instance.playerPosition,randomPosition);
+    
+                        int layerMask = LayerMask.GetMask(&quot;Walls&quot;);
+                        RaycastHit check;
+                        if (!Physics.SphereCast(new Vector3(randomPosition.x, 10, randomPosition.z), 2, -transform.up, out check, 15, layerMask))
+                        {// Raycasting from the top of desired spawn location to check if there is enough space for the enemy
+                            freeZone = true;
+                        }
+    
+                    } while (--stackProtector &gt; 0 && (!freeZone || distance &lt; 7.0f));
+    
+                    if (stackProtector &gt; 0)
+                    {//spawns the enemy
+                        spawnTimer = 0.0f;
+                        int randomIndex = Random.Range(0, enemyPrefabs.Length); //randomly choses an enemy to spawn (can be added more enemies)
+                        GenericEnemy newEnemy = Instantiate(enemyPrefabs[randomIndex], randomPosition, Quaternion.LookRotation(GameManager.instance.playerPosition));
+                        newEnemy.enemyList = enemies;
+                        enemies.Add(newEnemy); // Adds the enemy to the array
                     }
                 }
-            }
-        
-            public void IncreaseDifficulty() // Making the existing enemies harder
-            {
-                foreach (GenericEnemy enemy in enemies)
+    
+                levelTimer -= Time.deltaTime;
+                if (levelTimer &lt;= 0)// Increases the level difficulty
                 {
-                    if (enemy != null)
-                    {
-                        enemy.Harder();
-                        //Debug.Log("Harder ^o^");
-                    }
+                    IncreaseDifficulty();
+                    levelTimer = 10f;
+                    GameManager.instance.exp++; // Gives 1 exp to the player
+                    GameManager.instance.itemSpawn = true; // Gives info to the item spawn to spawn //!CHANGE TO BOOL!
+                    spawnRate += 1; // Increase the spawn rate
+                    GameManager.instance.levelDifficulty += 1;
+    
+                    // Makes the upcoming enemies harder (from here)
+                    GameManager.instance.meleeDamageEnemyHp += 3; 
+                    GameManager.instance.meleeDamageEnemySpeed += 0.1f;
+                    GameManager.instance.rangedEnemyBulletSpeed += .1f;
+                    GameManager.instance.rangedEnemySpeed += .1f;
+                    // (to here)
                 }
             }
         }
-    </code></pre>
+    
+        public void IncreaseDifficulty() // Making the existing enemies harder
+        {
+            foreach (GenericEnemy enemy in enemies)
+            {
+                if (enemy != null)
+                {
+                    enemy.Harder();
+                    //Debug.Log(&quot;Harder ^o^&quot;);
+                }
+            }
+        }
+    }
+    
+  </code>
+        </pre>
+      </div>
+    </div>
   </section>
-
-  <section id="Demo">
-    <h2>Demo</h2>
-        <iframe width="560" height="315" src="https://youtube.com/embed/Oex1u6bKnjA" frameborder="0" allowfullscreen></iframe>
-  </section>
-
   <footer>
     <p>&copy; 2025 Alexander. All rights reserved</p>
   </footer>
