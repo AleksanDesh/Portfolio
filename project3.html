@@ -12,7 +12,7 @@
 
 <body>
   <header>
-    <h1>Project 3:</h1>
+    <h1>Project 3: The Soul Game</h1>
     <nav>
       <a href="#Demo">Demo</a>
         <a href="#Description">Description</a>
@@ -29,7 +29,7 @@
     <h2>Demo</h2>
     <div class="video-container">
       <iframe 
-        src="https://www.youtube.com/embed/" 
+        src="https://www.youtube.com/embed/uMmWYHhZjUQ" 
         frameborder="0" 
         allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen>
@@ -40,7 +40,15 @@
 
   <section id="Description">
     <h2>Description:</h2>
-    <p></p>
+    <div style="text-align: center; margin: 0 auto; width: 80%;">
+    <p>
+      This was a highly time-consuming project, primarily focused on narrative rather 
+      than complex code. My main objective was to find the right assets and create a 
+      visually appealing experience. I encountered several challenges with lighting, 
+      and while it’s not perfect, the result is satisfactory. Additionally, I utilized 
+      Shader Graph in this project to create unique animations—for instance, the ghosts 
+      appear "alive" as they react dynamically to the air.
+    </p></div>
   </section>
 
   <section id="Code Example 1">
@@ -49,7 +57,112 @@
       <div class="code-frame">
         <pre>
   <code>
+using UnityEngine;
+using UnityEngine.VFX;
+using System.Collections;
 
+namespace FireballMovement
+{    public class FireballHorizontalMovement : MonoBehaviour
+    {
+        [SerializeField] private float delay = 6f;
+        [SerializeField] private float timer = 0f;
+        private bool collapse;
+
+        private Rigidbody _fireball;
+        private VisualEffect _fireballTrails;
+        private SphereCollider _collider;
+        [SerializeField] protected GameObject InfernoBurst;
+        [SerializeField] public GameObject GhostExplosion;
+        
+
+        void Start()
+        {           
+            _collider = gameObject.GetComponent<SphereCollider>();
+            _collider.radius = GameManager.instance.autoAimRadius;
+            _fireball = gameObject.GetComponent<Rigidbody>();
+            _fireballTrails = gameObject.GetComponent<VisualEffect>();
+            collapse = false;
+        }
+
+        void Update()
+        {
+            if (!collapse)
+            {
+                if (timer &lt; delay)
+                {
+                    timer += Time.deltaTime;
+                    _fireballTrails.enabled = true;
+                    _fireball.AddRelativeForce(Vector3.forward * GameManager.instance.projectileSpeed);
+                }
+                else if (timer >= delay)
+                {
+                    collapse = true;
+                    StartCoroutine(Collapsing());
+                }
+            }
+
+            if (transform.localScale.x &lt; .0029f)
+                Destroy(this.gameObject);
+        }
+
+        private IEnumerator Collapsing()
+        {
+            Debug.Log("Starting coroutine");
+            _fireball.velocity = Vector3.zero;
+            while (transform.localScale.x>0.003f)
+            {
+                transform.localScale = Vector3.Lerp(transform.localScale, new Vector3 (.001f,.001f,.001f), Time.deltaTime);
+                yield return new WaitForEndOfFrame();
+            }
+            Destroy(this.gameObject);
+            Debug.Log("Destroying from coroutine");
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other.tag == "Enemy" && !collapse)
+            {
+                collapse = true;
+                StartCoroutine(Killing(other));
+                StartCoroutine(MoveInToTrigger(other.transform.position));
+            }
+        }
+
+        private IEnumerator Killing(Collider other )
+        {
+            Vector3 otherPosition = other.transform.position;
+            Debug.Log("Starting coroutine2");
+            _fireball.velocity = Vector3.zero;
+            while (transform.localScale.x > .4f)
+            {
+                transform.localScale = Vector3.Lerp(transform.localScale, new Vector3(.3f, .3f, .3f), Time.deltaTime);
+                yield return new WaitForEndOfFrame();
+            }
+            yield return new WaitForEndOfFrame();
+            while (transform.localScale.x &lt; 1.1f)
+            {
+                transform.localScale = Vector3.Lerp(transform.localScale, new Vector3(1.2f, 1.2f, 1.2f), Time.deltaTime * 8);
+                yield return new WaitForEndOfFrame();
+            }
+            Instantiate(InfernoBurst, otherPosition - new Vector3( 0, 1.5f, 0), Quaternion.Euler( -90, 0, 0));
+            yield return new WaitForSeconds(1);
+            //Instantiate(GhostExplosion, other.transform.position, Quaternion.identity);
+
+            Destroy(this.gameObject);
+
+            Debug.Log("Destroying from coroutine2");
+        }
+
+        private IEnumerator MoveInToTrigger(Vector3 position)
+        {
+            while (true)
+            {
+                transform.position = Vector3.Lerp(transform.position, position, Time.deltaTime * 8);
+                yield return new WaitForEndOfFrame();
+            }
+        }
+    }
+}
   </code>
         </pre>
       </div>
@@ -63,6 +176,93 @@
       <div class="code-frame">
         <pre>
   <code>
+using System.Collections;
+using UnityEngine;
+
+public class Ghosts : MonoBehaviour
+{
+    [SerializeField] protected float detectionDistance;
+    [SerializeField] protected float killDistance;
+    [SerializeField] protected GameObject GhostExplosion;
+    [SerializeField] MeshRenderer GhostRenderer;
+    [SerializeField] MeshRenderer WebRenderer;
+    private float distance;
+    private bool detectedPlayer;
+    private bool shoted;
+    // Start is called before the first frame update
+    void Start()
+    {
+        shoted = false;
+        StartCoroutine(Movement(0));
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if (!shoted)
+        {
+            distance = Vector3.Distance(transform.position, GameManager.instance.playerPosition);
+            if (distance &lt; detectionDistance)
+            {
+                detectedPlayer = true;
+            }
+            if (detectedPlayer && distance >= killDistance)
+            {
+                transform.LookAt(GameManager.instance.playerPosition);
+                transform.position = Vector3.MoveTowards(transform.position, GameManager.instance.playerPosition + new Vector3(0, 1, 0), Time.deltaTime);
+                StartCoroutine(Movement(-1));
+            }
+            else if (detectedPlayer && distance &lt; killDistance && distance > .6f)
+            {
+                transform.position = Vector3.MoveTowards(transform.position, GameManager.instance.playerPosition + new Vector3(0, .5f, 0), Time.deltaTime * 10);
+            }
+            if (distance &lt;= .6f)
+            {
+                GameManager.instance.playerHp -= 9;
+                GameManager.instance.CheckDeath();
+                StartCoroutine(Explode());
+            }
+        }
+    }
+
+    void ShowMovement(float value)
+    {
+        GhostRenderer.material.SetFloat("_GhostBend", value);
+        WebRenderer.material.SetFloat("_GhostBend", value);
+    }
+
+    private IEnumerator Movement(float value)
+    {
+        float timer = 0;
+        while (timer &lt; 5f)
+        {
+            timer += Time.deltaTime;
+            GhostRenderer.material.SetFloat("_GhostBend", Mathf.Lerp(GhostRenderer.material.GetFloat("_GhostBend"), value, .5f));
+            WebRenderer.material.SetFloat("_GhostBend", Mathf.Lerp(GhostRenderer.material.GetFloat("_GhostBend"), value, .5f));
+            yield return new WaitForEndOfFrame();
+        }
+    }
+
+    private IEnumerator Explode()
+    {
+        if (shoted)
+            yield return new WaitForSeconds(2);
+        Debug.Log("Destroyed oouhewg");
+        GameManager.instance.playerEXP += 10;
+        Instantiate(GhostExplosion, transform.position, Quaternion.Euler(new Vector3(transform.rotation.x, transform.rotation.y, transform.rotation.z + 180)));
+        Destroy(this.gameObject);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.transform.tag == "Bullet")
+        {
+            shoted = true;
+            StartCoroutine(Movement(0));
+            StartCoroutine(Explode());
+        }
+    }
+}
 
     
   </code>

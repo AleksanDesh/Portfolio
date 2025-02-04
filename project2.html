@@ -12,7 +12,7 @@
 
 <body>
   <header>
-    <h1>Project 2:</h1>
+    <h1>Project 2: Pizza Panic</h1>
     <nav>
         <a href="#Demo">Demo</a>
         <a href="#Description">Description</a>
@@ -29,7 +29,7 @@
     <h2>Demo</h2>
     <div class="video-container">
       <iframe 
-        src="https://www.youtube.com/embed/" 
+        src="https://www.youtube.com/embed/qTMKvbtHwDA" 
         frameborder="0" 
         allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen>
@@ -40,7 +40,23 @@
 
   <section id="Description">
     <h2>Description:</h2>
-    <p></p>
+    <div style="text-align: center; margin: 0 auto; width: 80%;">
+    <p>
+        This was the most challenging project I’ve ever undertaken in Unity. 
+        The biggest hurdle was developing the character controller, which 
+        required nearly five days of continuous effort. The primary issue 
+        lay in the DetermineCorrectRotation method. Initially, I had no 
+        experience working with Quaternions, so I had to dive deep into the 
+        subject, even experimenting with matrices in an attempt to make them
+         work. After three days of intense work, I discovered that the problem
+          could actually be solved with just two lines of code. Later on the code was improved
+           to statisfy the results of the playtest feedback.
+
+        While there are still improvements I’d like to make, the current 
+        implementation meets the intended behavior, allowing me to shift my focus to other scripts.
+
+        The project was made in 3 weeks of work.
+    </p></div>
   </section>
 
   <section id="Code Example 1">
@@ -49,7 +65,395 @@
       <div class="code-frame">
         <pre>
   <code>
+using System.Collections;
+using UnityEngine;
+using System;
 
+public class UltimateCharacterController : MonoBehaviour
+{
+    #region Hovering
+    [Header("Hovering")]
+    [SerializeField, Tooltip("The higher the value, the stronger you repulse from the ground")]
+    [Range(0, 50)] private float floorRepulsion;
+    [SerializeField, Tooltip("Resist to all forces")]
+    [Range(0, 10)] private float resistanceRepulsion;
+    [SerializeField, Tooltip("How fast we will try to stand up")]
+    [Range(0, 10)] private float uprightForceMultiplier = 1f;
+    [SerializeField, Tooltip("How much resistance we encounter when standing up")]
+    [Range(0, 10)] private float dampingFactor = 1f;
+    #endregion
+    #region Jumping
+    [Header("Jumping")]
+    [SerializeField, Tooltip("How strong you can jump")]
+    private float jumpForce;
+    [SerializeField, Tooltip("How strong you can doublejump")]
+    private float secondJumpForce;
+    [SerializeField, Tooltip("How strong you can jump on a Jump Pad")]
+    private float jumpPadForce;
+    [SerializeField, Tooltip("The higher the value, the faster you fall")]
+    [Range(0, 6)] private float fallMultiplier = 3f;
+    [SerializeField, Tooltip("The higher the value, the faster you fall")]
+    [Range(0, 6)] private float lowJumpMultiplier = 2f;
+    [SerializeField, Tooltip("The lover the value, the more speed you need to activate")]
+    [Range(0, -50)] private float springBoardActivationSpeed = -10;
+    #endregion
+    #region Bools
+    private bool Jump;
+    private bool doubleJump;
+    private bool Grounded;
+    private bool isRunningEffectCoroutineActive;
+    #endregion
+    #region Movement
+    [Header("Movement")]
+    [SerializeField]
+    private float rotationSpeed = 5f;
+    [SerializeField] 
+    private float acceleration = 8f;
+    [SerializeField]
+    private AnimationCurve accelerationCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    [SerializeField, Tooltip("The higher the value, the faster you walk (Note that at the end this speed is going to be /2)")]
+    private float playerWalkSpeed = 10f;
+    [SerializeField, Tooltip("The higher the value, the faster you run (Note that at the end this speed is going to be /2)")]
+    private float playerRunSpeed = 15f;
+    [SerializeField, Tooltip("The higher the value, the faster you stop")]
+    private float stoppingForce = 60f;
+    [SerializeField]
+    private AnimationCurve stoppingCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    [SerializeField] 
+    private Animator characterAnimator = null;
+    [SerializeField]
+    private Transform startRayPos = null;
+    [SerializeField, Tooltip(" from 0 to 1, represents % of value")]
+    [Range (0,1)] private float waterDecrease = .8f;
+    #endregion
+    #region Effects
+    [Header("Effects")]
+    [SerializeField]
+    private GameObject jumpEffect;
+    [SerializeField]
+    private GameObject runningEffect;
+    [SerializeField, Tooltip("The lower the value, the faster is the spawnrate")]
+    [Range(0.01f,2)] private float runningEffectSpawnRate = 2f;
+    #endregion
+    #region Privates
+    private GameObject Player;
+    private Rigidbody rb;
+    private Glider onTriggerEnterEvent;
+    private Glider onTriggerStayEvent;
+    private Glider onTriggerExitEvent;
+    #endregion
+
+
+    #region Sounds
+    public AudioClip jumpSound;
+    public AudioClip duckSound;
+    public AudioClip waterSplashSound;
+    public GameObject jumpPadSound;
+
+    private float soundTimer;
+    public AudioClip waterWalkingSound;
+
+    #endregion
+
+    #region Updates
+
+    private void Awake()
+    {
+        Player = GameObject.FindWithTag("Player");
+        if (Player == null)
+        {
+            Debug.Log("No Player object found. Did you forgot to assign Player tag to it?");
+        }
+        if (!characterAnimator)
+        {
+            Debug.Log("No Player animator found. Did you forgot to assign it?");
+        }
+        rb = Player.GetComponent<Rigidbody>();
+        if (rb == null )
+        {
+            Debug.Log("No Rigidbody component in Player found");
+        }
+        onTriggerEnterEvent = Player.gameObject.GetComponent<Glider>();
+        onTriggerStayEvent = Player.gameObject.GetComponent<Glider>();
+        onTriggerExitEvent = Player.gameObject.GetComponent<Glider>();
+        startRayPos = Player.gameObject.transform.Find("startRayPos");
+        onTriggerEnterEvent.onTriggerEnter.AddListener(OnTheOtherTriggerEnterMethod);
+        onTriggerStayEvent.onTriggerStay.AddListener(OnTheOtherTriggerStayMethod);
+        onTriggerExitEvent.onTriggerExit.AddListener(OnTheOtherTriggerExitMethod);
+    }
+
+    void FixedUpdate()
+    {        
+        GameManager.instance.playerPosition = transform.position;
+        characterAnimator.SetBool("Grounded", Grounded);
+
+        Movement();
+        DetermineCorrectRotation();
+        Hovering();
+        // Fast falling effect
+        if (!Grounded && rb.velocity.y &lt; 0)
+            rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.deltaTime;
+        else if (!Grounded && rb.velocity.y > 0 && !Input.GetButton("Jump"))
+            rb.velocity += Vector3.up * Physics.gravity.y * (lowJumpMultiplier - 1) * Time.deltaTime;
+    }
+
+
+
+    public void Update()
+    {
+        //Movement();
+        //Debug.Log(runningEffectSpawnRate * Math.Exp(-.1f * rb.velocity.magnitude));
+        if (Input.GetButtonDown("Jump"))
+        {
+            Jumping();
+        }
+        if (Grounded && !Input.GetButtonDown("Jump"))
+        {
+            doubleJump = true;
+        }
+    }
+
+    #endregion
+
+    #region Controls
+
+    private void Movement()
+    {
+        float Horizontal = Input.GetAxisRaw("Horizontal");
+        float Vertical = Input.GetAxisRaw("Vertical");
+
+        // Get the direction based on camera's forward and right
+        Vector3 forward = Camera.main.transform.forward;
+        Vector3 right = Camera.main.transform.right;
+
+        // Ignore vertical movement
+        forward.y = 0f;
+        right.y = 0f;
+
+        forward.Normalize();
+        right.Normalize();
+
+        // Calculate the direction relative to the camera
+        Vector3 direction = (forward * Vertical + right * Horizontal).normalized;
+
+        if (direction.magnitude &lt; 0.05f) // Minimal input threshold is missing
+        {
+            // Stop the player when no input is detected
+            Vector3 currentVelocity = rb.velocity;
+            Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
+
+            float stoppingFactor = stoppingCurve.Evaluate(horizontalVelocity.magnitude / playerWalkSpeed);
+            rb.AddForce(-horizontalVelocity * stoppingForce * stoppingFactor, ForceMode.Acceleration);
+        }
+        else
+        {
+            // Rotate the player instantly towards the movement direction
+            Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+            Player.transform.rotation = Quaternion.RotateTowards(Player.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime * 360f);
+
+            // Get the current velocity
+            Vector3 currentVelocity = rb.velocity;
+            Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
+
+            // Check if the new direction is opposite to the current velocity
+            float dotProduct = Vector3.Dot(horizontalVelocity.normalized, direction);
+            bool isOppositeDirection = dotProduct &lt; 0;
+
+            // Calculate the desired velocity based on input and speed
+            float speed = Input.GetButton("Sprint") && Grounded ? playerRunSpeed : playerWalkSpeed;
+            Vector3 desiredVelocity = direction * speed;
+
+            // Blend current velocity toward the desired velocity
+            Vector3 velocityChange = desiredVelocity - horizontalVelocity;
+
+            // Scale down the velocity change if the direction is opposite
+            float slowDownFactor = isOppositeDirection ? 0.5f : 1.0f; // Adjust this factor for more/less slowing
+            velocityChange *= slowDownFactor;
+
+            // Apply force based on the adjusted velocity change
+            float accelerationVelocity = accelerationCurve.Evaluate(horizontalVelocity.magnitude / playerWalkSpeed);
+            rb.AddForce(velocityChange * acceleration * accelerationVelocity, ForceMode.Acceleration);
+        }
+
+        if (Horizontal != 0 || Vertical != 0)
+            if (!isRunningEffectCoroutineActive && Grounded)
+            {
+                StartCoroutine(RunEffectCoroutine());
+            }
+
+        characterAnimator.SetFloat("MoveSpeed", rb.velocity.magnitude);
+    }
+
+
+    private void Jumping()
+    {
+        Vector3 velocity = rb.velocity;
+        if (Grounded)
+        {// Checking if above is is a jumpPad, if ther is, then we apply different force for the jump
+            RaycastHit hit;
+            if (Physics.Raycast(startRayPos.position, Vector3.down, out hit, 3))
+                if (hit.transform.CompareTag("JumpPad"))
+                    rb.velocity = new Vector3(velocity.x, Mathf.Max(velocity.y, jumpPadForce), velocity.z);
+                else // Else, normal jump
+                    rb.velocity = new Vector3(velocity.x, Mathf.Max(velocity.y, jumpForce), velocity.z);
+            Jump = true;
+            // Instantiating jumpnig effect
+            instantiateSomething(jumpEffect);
+            PlayAudio(jumpSound);
+        }
+        else if (doubleJump && Jump)
+        {// Double jump
+            rb.velocity = new Vector3(velocity.x, Mathf.Max(velocity.y, secondJumpForce), velocity.z);
+            doubleJump = false;
+            Jump = false;
+            // Instantiating jumpnig effect
+            instantiateSomething(jumpEffect);
+            PlayAudio(jumpSound);
+        }
+    }
+
+    private void Hovering()
+    {// We do a raycast to know how far we are from the floor
+        RaycastHit position;
+
+        if (Physics.Raycast(startRayPos.position, Vector3.down, out position, 2))
+        {// If we are close enough we get the raycast output
+            Grounded = true;
+            //Debug.DrawLine(startRayPos.position, position.point, Color.red);
+
+            // Calculate velocity along the raycast direction
+            Vector3 velocity = rb.velocity;
+            Vector3 rayDirection = Vector3.up;
+
+            // Check if the object hit by the ray has a Rigidbody (to account for its movement)
+            Vector3 otherVelocity = Vector3.zero;
+            Rigidbody hitRb = position.rigidbody;
+            if (hitRb != null)
+            {
+                otherVelocity = hitRb.velocity;
+            }
+
+            // Calculate the velocity along the raycast direction
+            float playerVelocity = Vector3.Dot(rayDirection, velocity);
+            float targetVelocity = Vector3.Dot(rayDirection, otherVelocity);
+            float relativeVelocity = playerVelocity - targetVelocity;
+
+            // Desired hover height
+            float desiredHeight = 2f;
+
+            // Calculate the hover force
+            float currentHeight = position.distance; // Distance between player and ground
+            float force = desiredHeight - currentHeight;
+
+            // Apply hover force with spring-like behavior
+            float hoverForce = (force * floorRepulsion) - (relativeVelocity * resistanceRepulsion);
+            rb.AddForce(rayDirection * hoverForce, ForceMode.Force);
+            //Debug.Log(position.point.y + " - raycast y, " + force + " - the force" + hoverForce + " - the final force");
+        }
+        else
+            Grounded = false;
+    }
+
+    #endregion
+
+    #region Methods
+    private void instantiateSomething(GameObject effect)
+    {
+        if (effect == null) return;
+        GameObject smoke = Instantiate(effect, Player.transform.position, Quaternion.LookRotation(-Player.transform.forward)) as GameObject;
+        if (smoke.TryGetComponent(out ParticleSystem parts))
+        {// Calculate how long this effect will live
+            float totalDuration = parts.duration + parts.startLifetime;
+            Destroy(smoke, totalDuration);
+        }
+        else // Fallback destroy time if no ParticleSystem is found
+            Destroy(smoke, 2f); 
+    }
+
+
+    private void DetermineCorrectRotation()
+    {
+        // Gets a vector that is perpendicular to both input vectors. The length is proportional to the (sine of the!) angle between them!
+        Vector3 rotAxis = Vector3.Cross(Vector3.up, Player.transform.up);
+        //Debug.DrawRay(Player.transform.position, rotAxis * 10);
+        rb.AddTorque((-rotAxis * uprightForceMultiplier) - (-rb.angularVelocity * dampingFactor));
+    }
+
+    private IEnumerator RunEffectCoroutine()
+    {
+        isRunningEffectCoroutineActive = true;
+
+        instantiateSomething(runningEffect);
+        yield return new WaitForSeconds((float)(runningEffectSpawnRate * Math.Exp(-.1f * rb.velocity.magnitude)));
+
+        isRunningEffectCoroutineActive = false;
+    }
+
+
+    private void OnTheOtherTriggerEnterMethod(Collider other)
+    {
+        if (other.gameObject.CompareTag("JumpPad") && rb.velocity.y &lt; springBoardActivationSpeed)
+        {
+            SpringBoardPower value = other.GetComponent<SpringBoardPower>();
+            Debug.Log(value.springBoardPower);
+            Vector3 velocity = rb.velocity;
+            rb.velocity = new Vector3(velocity.x, Mathf.Max(velocity.y, value.springBoardPower), velocity.z);
+            GameObject sound = Instantiate(jumpPadSound);
+            Destroy(sound, 2f);
+        }
+        else if (other.gameObject.CompareTag("Duck") && rb.velocity.y &lt; springBoardActivationSpeed)
+        {
+            PlayAudio(duckSound);
+        }
+        else if (other.gameObject.CompareTag("Water"))
+        {
+            PlayAudio(waterSplashSound);
+            acceleration *= waterDecrease;
+            playerWalkSpeed *= waterDecrease;
+            playerRunSpeed *= waterDecrease;
+        }
+    }
+
+    private void OnTheOtherTriggerStayMethod(Collider other)
+    {
+        if (other.gameObject.CompareTag("Water") && rb.velocity.magnitude > 0.1f)
+        {
+            // Calculate the interval for the sound based on velocity
+            float velocityFactor = Mathf.Clamp(rb.velocity.magnitude / playerRunSpeed, 0f, 1f);
+            float nextSoundTime = Mathf.Lerp(1f, 0.1f, velocityFactor); // From 1 second to 0.1 seconds based on speed
+
+            // Check if it's time to play the sound
+            soundTimer += Time.deltaTime;
+            if (soundTimer >= nextSoundTime)
+            {
+                PlayAudio(waterWalkingSound);
+                soundTimer = 0f; // Reset the timer
+            }
+        }
+        else
+        {
+            soundTimer = 0f; // Reset the timer if not in water or not moving
+        }
+    }
+
+    private void OnTheOtherTriggerExitMethod(Collider other)
+    {
+        if (other.gameObject.CompareTag("Water"))
+        {
+            PlayAudio(waterSplashSound);
+            acceleration /= waterDecrease;
+            playerWalkSpeed /= waterDecrease;
+            playerRunSpeed /= waterDecrease;
+        }
+    }
+
+    private void PlayAudio(AudioClip sound)
+    {
+        AudioSource.PlayClipAtPoint(sound, Player.transform.position);
+    }
+
+    #endregion
+}
   </code>
         </pre>
       </div>
@@ -63,7 +467,210 @@
       <div class="code-frame">
         <pre>
   <code>
+using UnityEngine;
 
+public class FollowAndLook : MonoBehaviour
+{
+    #region Values
+    [Header("References")]
+    [SerializeField]
+    private Transform player;  // Reference to the player to follow
+
+    [Header("Camera Settings")]
+    [SerializeField]
+    private float distance = 5f;  // Distance from the player
+    [SerializeField]
+    private float height = 2f;    // Height above the player
+    [SerializeField]
+    private float rotationSpeed = 5f;  // Speed of camera rotation with mouse input
+
+    [Header("Mouse Sensitivity")]
+    [SerializeField]
+    private float sensitivityX = 100f; // Horizontal sensitivity
+    [SerializeField]
+    private float sensetivityY = 100f; // Vertical sensitivity
+
+    [Header("Clamping Vertical Angle")]
+    [SerializeField]
+    private float minYAngle = -20f;  // Minimum vertical angle
+    [SerializeField]
+    private float maxYAngle = 60f;   // Maximum vertical angle
+
+    [SerializeField]
+    private float followSpeed = 4f;
+    [SerializeField]
+    private LayerMask collisionLayer; // LayerMask for objects that block the camera !USE IF NEEDED!
+
+    private float currentDistance;
+    private float currentX = 0f;  // Current horizontal rotation
+    private float currentY = 0f;  // Current vertical rotation
+    #endregion
+    void Start()
+    {
+        if (player == null)
+        {
+            Debug.LogError("Player object is not assigned!");
+            return;
+        }
+
+        // Ensure the camera starts behind the player
+        currentY = 10f; // Adjust this value for the desired vertical angle
+        currentX = player.eulerAngles.y; // Align the horizontal angle with the player's rotation
+
+        Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);
+        Vector3 anchorPosition = player.position;
+
+        // Desired initial position
+        Vector3 startPosition = anchorPosition - (rotation * Vector3.forward * distance) + Vector3.up * height;
+
+        // Set the camera's position and rotation
+        transform.position = startPosition;
+        transform.rotation = Quaternion.LookRotation((player.position + Vector3.up * height * 0.5f) - transform.position);
+
+        currentDistance = distance; // Initialize current distance
+    }
+
+    void Update()
+    {
+        GameManager.instance.playerCameraPosition = transform.position;
+ 
+        // Handle cursor state based on ALT key or pause menu
+        if (GameManager.instance.isPaused)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else if (Input.GetKey(KeyCode.LeftAlt))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
+    void FixedUpdate()
+    {
+        if (player == null) return;
+
+        // Get mouse input
+        float mouseX = Input.GetAxis("Mouse X") * sensitivityX * Time.deltaTime;
+        float mouseY = Input.GetAxis("Mouse Y") * sensetivityY * Time.deltaTime;
+
+        float controllerX = Input.GetAxis("Right Stick Horizontal") * sensitivityX * Time.deltaTime;
+        float controllerY = Input.GetAxis("Right Stick Vertical") * sensetivityY * Time.deltaTime;
+
+        float totalMouseX = mouseX + controllerX;
+        float totalMouseY = mouseY + controllerY;
+
+        if (Cursor.lockState == CursorLockMode.Locked)
+        {
+            currentX += totalMouseX;
+            currentY -= totalMouseY;
+        }
+
+        currentY = Mathf.Clamp(currentY, minYAngle, maxYAngle);
+        Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);
+        Vector3 anchorPosition = player.position;
+
+        // Desired position
+        Vector3 desiredPosition = anchorPosition - (rotation * Vector3.forward * distance) + Vector3.up * height;
+
+        Vector3 rayDirection = (transform.position - (anchorPosition + Vector3.up * height)).normalized;
+        float rayDistance = Vector3.Distance(anchorPosition + Vector3.up * height, transform.position);
+
+        RaycastHit hit;
+        if (Physics.Raycast(anchorPosition + Vector3.up * height, rayDirection, out hit, rayDistance, collisionLayer))
+        {
+            currentDistance = Mathf.Lerp(currentDistance, hit.distance, Time.deltaTime * 10);
+            Debug.DrawLine(anchorPosition + Vector3.up * height, transform.position, Color.blue);
+            SetPlayerMaterialOpacity(0.3f); // Reduce player opacity
+        }
+        else
+        {
+            // Restore camera distance and opacity
+            currentDistance = Mathf.Lerp(currentDistance, distance, Time.deltaTime * 10);
+            SetPlayerMaterialOpacity(1f); // Restore full opacity
+        }
+
+        // Update camera position based on current distance
+        desiredPosition = anchorPosition - (rotation * Vector3.forward * currentDistance) + Vector3.up * height;
+        transform.position = desiredPosition;
+
+        Quaternion lookAtRotation = Quaternion.LookRotation((player.position + Vector3.up * height * 0.5f) - transform.position);
+        transform.rotation = Quaternion.Lerp(transform.rotation, lookAtRotation, Time.deltaTime * rotationSpeed);
+    }
+
+    // Function to adjust the player's material opacity
+    void SetPlayerMaterialOpacity(float targetOpacity)
+    {
+        Renderer[] renderers = player.GetComponentsInChildren<Renderer>(); // Get all renderers in child objects
+        if (renderers.Length > 0)
+        {
+            foreach (Renderer renderer in renderers)
+            {
+                foreach (Material mat in renderer.materials) // Loop through all materials
+                {
+                    if (mat.HasProperty("_Color")) // Ensure the material has a _Color property
+                    {
+                        Color color = mat.color;
+                        color.a = Mathf.Lerp(color.a, targetOpacity, Time.deltaTime * followSpeed);
+                        mat.color = color;
+
+                        if (targetOpacity &lt; 1) // Enable transparency mode
+                        {
+                            if (mat.shader.name.Contains("Universal Render Pipeline/Lit"))
+                            {
+                                mat.SetFloat("_Surface", 1); // Set Surface Type to Transparent
+                                mat.SetInt("_Blend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                                mat.SetInt("_ZWrite", 0);
+                                mat.DisableKeyword("_ALPHATEST_ON");
+                                mat.EnableKeyword("_ALPHABLEND_ON");
+                                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                                mat.renderQueue = 3000; // Transparent queue
+                            }
+                        }
+                        else if (color.a > .95f) // Reset to Opaque mode
+                        {
+                            if (mat.shader.name.Contains("Universal Render Pipeline/Lit"))
+                            {
+                                mat.SetFloat("_Surface", 0); // Set Surface Type to Opaque
+                                mat.SetInt("_Blend", (int)UnityEngine.Rendering.BlendMode.One);
+                                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                                mat.SetInt("_ZWrite", 1);
+                                mat.EnableKeyword("_ALPHATEST_ON");
+                                mat.DisableKeyword("_ALPHABLEND_ON");
+                                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                                mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                                mat.renderQueue = -1; // Default queue
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Material '{mat.name}' does not have a _Color property.");
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No renderers found on player.");
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        // Visualize CheckSphere in the editor
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, 0.3f);
+    }
+}
     
   </code>
         </pre>
